@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Dacus Trap Log</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --field-green: #2b3a2e;
+    --field-green-dark: #1c261e;
+    --amber: #e0a12a;
+    --amber-dark: #b87f1a;
+    --paper: #f4f0e6;
+    --ink: #23231f;
+    --line: #4a5a4a;
+    --danger: #a4402c;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--field-green-dark);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(224,161,42,0.06), transparent 40%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+    color: var(--paper);
+    font-family: 'Courier New', Consolas, monospace;
+    min-height: 100vh;
+    display:flex;
+    justify-content:center;
+    padding: 18px 14px 40px;
+  }
+  .sheet{ width: 100%; max-width: 480px; }
+  .header{
+    border-bottom: 2px solid var(--amber);
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+  }
+  .header .tag{ font-size: 11px; letter-spacing: 2px; color: var(--amber); text-transform: uppercase; }
+  .header h1{ font-size: 20px; margin: 2px 0 0; letter-spacing: 0.5px; font-weight: 700; }
+  .header .idnum{ font-size: 11px; color: #9fae9f; text-align:right; }
+  .field{ margin-bottom: 16px; }
+  label{
+    display:block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 6px;
+  }
+  input[type="number"], input[type="text"], textarea{
+    width: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    border: none;
+    border-left: 4px solid var(--field-green);
+    padding: 12px 12px;
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 16px;
+    border-radius: 2px;
+  }
+  input:focus, textarea:focus{ outline: 2px solid var(--amber); outline-offset: 0; }
+  .coord-row{ display:flex; gap:10px; align-items: stretch; }
+  .coord-box{
+    flex:1; background: var(--paper); color: var(--ink);
+    border-left: 4px solid var(--field-green); padding: 12px 12px;
+    font-size: 15px; border-radius: 2px; min-height: 46px;
+    display:flex; align-items:center; word-break: break-all;
+  }
+  .coord-box.empty{ color:#8a8a80; font-style:italic; }
+  .coord-box .acc{ display:block; font-size: 10px; color:#6a6a60; margin-top:2px; }
+  button{ font-family: inherit; cursor:pointer; border: none; border-radius: 2px; }
+  .btn-locate{
+    flex-shrink:0; width: 52px; background: var(--field-green); color: var(--amber);
+    font-size: 20px; border: 1px solid var(--amber);
+  }
+  .btn-locate:active{ background: var(--amber); color: var(--field-green-dark); }
+  .btn-locate.loading{ animation: pulse 1s infinite; }
+  @keyframes pulse{ 50%{ opacity:0.4; } }
+  .manual-toggle{ margin-top:8px; }
+  .manual-toggle input{
+    background: transparent; color: var(--paper); border: 1px dashed var(--line);
+    padding: 9px 10px; font-size: 13px;
+  }
+  .manual-toggle input:focus{ outline: 1px solid var(--amber); border-color: var(--amber); }
+  .manual-toggle input::placeholder{ color:#5a6a5a; }
+  .status{ margin-top: 10px; font-size: 12px; color: #9fae9f; min-height: 16px; }
+  .status.error{ color: var(--danger); }
+  .status.ok{ color: #9fd19f; }
+  .btn-add{
+    width:100%; background: var(--field-green); color: var(--amber);
+    border: 1px solid var(--amber); font-weight:700; letter-spacing: 1.5px;
+    text-transform: uppercase; font-size: 14px; padding: 13px; margin-top: 6px;
+  }
+  .btn-add:active{ background: var(--amber); color: var(--field-green-dark); }
+  .preview{
+    margin-top: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    border-left: 4px solid var(--field-green);
+    padding: 10px 12px;
+    border-radius: 2px;
+    min-height: 90px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .preview .placeholder{ color:#8a8a80; font-style:italic; }
+  .preview .row{ border-bottom: 1px dotted #b9b3a2; padding: 6px 0; }
+  .preview .row:last-child{ border-bottom:none; }
+  .submit-row{ margin-top: 22px; }
+  .btn-submit{
+    width:100%; background: var(--amber); color: var(--field-green-dark); font-weight:700;
+    letter-spacing: 1.5px; text-transform: uppercase; font-size: 15px; padding: 15px;
+  }
+  .btn-submit:active{ background: var(--amber-dark); }
+  .btn-submit:disabled{ background:#5a5a4f; color:#8a8a80; cursor:not-allowed; }
+  .hint{
+    margin-top: 18px; font-size: 11px; color: #6a7a6a; line-height:1.6;
+    border-top: 1px solid var(--line); padding-top: 10px;
+  }
+  .hint code{ color:#9fae9f; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header">
+      <div>
+        <div class="tag">Πεδίο Καταγραφής</div>
+        <h1>Dacus Trap Log</h1>
+      </div>
+      <div class="idnum" id="dateStamp">--/--/----</div>
+    </div>
+
+    <div class="field">
+      <label for="letterSelect">Τομέας</label>
+      <select id="letterSelect" style="width:100%;background:var(--paper);color:var(--ink);border:none;border-left:4px solid var(--field-green);padding:12px 12px;font-family:'Courier New', Consolas, monospace;font-size:16px;border-radius:2px;">
+        <option value="">--</option>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="trapNum">Αρ. Παγίδας</label>
+      <input type="number" id="trapNum" inputmode="numeric" placeholder="π.χ. 14">
+    </div>
+
+    <div class="field">
+      <label for="coordsBox">Συντεταγμένες</label>
+      <div class="coord-row">
+        <div class="coord-box empty" id="coordsBox">Πάτησε το κουμπί ή γράψε χειροκίνητα</div>
+        <button class="btn-locate" id="locateBtn" title="Λήψη θέσης">&#8982;</button>
+      </div>
+      <div class="status" id="locStatus"></div>
+      <div class="manual-toggle">
+        <input type="text" id="manualCoords" placeholder="ή επικόλλησε: 38.123456, 23.123456 (Google Maps)">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="comments">Σχόλια</label>
+      <textarea id="comments" placeholder="Παρατηρήσεις..." style="min-height:60px;"></textarea>
+    </div>
+
+    <div class="field">
+      <button class="btn-add" id="addBtn">ΠΑΡΕ ΕΝΑ ΤΕΜΑΧΙΟ</button>
+      <div class="preview" id="preview"><span class="placeholder">Καμία εγγραφή ακόμα.</span></div>
+    </div>
+
+    <div class="submit-row">
+      <button class="btn-submit" id="submitBtn" disabled>ΑΠΟΨΕ ΤΕΛΕΙΩΣΑΝ ΟΙ ΛΕΞΕΙΣ</button>
+    </div>
+    <div class="status" id="submitStatus"></div>
+
+    <div class="hint">
+      Πατώντας "ΑΠΟΨΕ ΤΕΛΕΙΩΣΑΝ ΟΙ ΛΕΞΕΙΣ" γίνεται λήψη του αρχείου Excel στον προεπιλεγμένο φάκελο Λήψεων της συσκευής. Στο Android μετά τη λήψη μπορείς να το μετακινήσεις όπου θέλεις μέσω της εφαρμογής "Αρχεία".
+    </div>
+  </div>
+
+<script>
+  const trapNum = document.getElementById('trapNum');
+  const letterSelect = document.getElementById('letterSelect');
+  const coordsBox = document.getElementById('coordsBox');
+  const locateBtn = document.getElementById('locateBtn');
+  const locStatus = document.getElementById('locStatus');
+  const manualCoords = document.getElementById('manualCoords');
+  const comments = document.getElementById('comments');
+  const addBtn = document.getElementById('addBtn');
+  const preview = document.getElementById('preview');
+  const submitBtn = document.getElementById('submitBtn');
+  const submitStatus = document.getElementById('submitStatus');
+  const dateStamp = document.getElementById('dateStamp');
+
+  let currentCoords = null;
+  let entries = [];
+
+  function todayDMY(){
+    const d = new Date();
+    return String(d.getDate()).padStart(2,'0') + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + d.getFullYear();
+  }
+  function nowDMYHM(){
+    const d = new Date();
+    const date = String(d.getDate()).padStart(2,'0') + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + d.getFullYear();
+    const time = String(d.getHours()).padStart(2,'0') + '-' + String(d.getMinutes()).padStart(2,'0');
+    return `${date} ${time}`;
+  }
+  dateStamp.textContent = todayDMY();
+
+  function checkAddReady(){
+    addBtn.disabled = !(trapNum.value.trim() !== '' && currentCoords);
+  }
+  trapNum.addEventListener('input', checkAddReady);
+
+  manualCoords.addEventListener('input', () => {
+    const raw = manualCoords.value.trim();
+    const m = raw.match(/(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/);
+    if(m){
+      const lat = parseFloat(m[1]).toFixed(6);
+      const lon = parseFloat(m[2]).toFixed(6);
+      currentCoords = {x: lon, y: lat};
+      coordsBox.classList.remove('empty');
+      coordsBox.innerHTML = `y: ${lat}, x: ${lon}<span class="acc">χειροκίνητη καταχώρηση</span>`;
+      locStatus.classList.remove('error');
+      locStatus.textContent = '';
+    } else {
+      currentCoords = null;
+      coordsBox.classList.add('empty');
+      coordsBox.textContent = 'Πάτησε το κουμπί ή γράψε χειροκίνητα';
+    }
+    checkAddReady();
+  });
+
+  locateBtn.addEventListener('click', () => {
+    if(!navigator.geolocation){
+      locStatus.textContent = 'Το geolocation δεν υποστηρίζεται εδώ — χρησιμοποίησε τη χειροκίνητη εισαγωγή.';
+      locStatus.classList.add('error');
+      return;
+    }
+    locateBtn.classList.add('loading');
+    locStatus.classList.remove('error');
+    locStatus.textContent = 'Λήψη θέσης...';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lon = pos.coords.longitude.toFixed(6);
+        currentCoords = {y: lat,x: lon,  accuracy: Math.round(pos.coords.accuracy)};
+        coordsBox.classList.remove('empty');
+        coordsBox.innerHTML = `y: ${lat}, x: ${lon}<span class="acc">ακρίβεια ~${currentCoords.accuracy} μ.</span>`;
+        locStatus.textContent = 'Η θέση καταγράφηκε.';
+        locateBtn.classList.remove('loading');
+        checkAddReady();
+      },
+      () => {
+        locateBtn.classList.remove('loading');
+        locStatus.classList.add('error');
+        locStatus.textContent = 'Αποτυχία λήψης θέσης (πιθανώς λόγω file:// — δες σημείωση κάτω) — χρησιμοποίησε τη χειροκίνητη εισαγωγή.';
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderPreview(){
+    if(entries.length === 0){
+      preview.innerHTML = '<span class="placeholder">Καμία εγγραφή ακόμα.</span>';
+      submitBtn.disabled = true;
+      return;
+    }
+    preview.innerHTML = entries.map((e,i) =>
+      `<div class="row" style="display:flex;flex-direction:column;gap:4px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6a6a60;">
+          <span>#${i+1}</span>
+          <button class="row-del" data-idx="${i}" title="Διαγραφή" style="margin-left:auto;background:transparent;border:1px solid var(--danger);color:var(--danger);border-radius:2px;padding:2px 7px;font-size:11px;">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <label style="font-size:10px;color:#6a6a60;">Τομέας</label>
+          <select class="edit-field" data-idx="${i}" data-key="letter" style="width:50px;font-family:inherit;font-size:12px;padding:4px 6px;border:1px solid #b9b3a2;border-radius:2px;background:#fff;color:var(--ink);">
+            ${['','A','B','C','D'].map(L => `<option value="${L}"${e.letter===L?' selected':''}>${L===''?'--':L}</option>`).join('')}
+          </select>
+          <label style="font-size:10px;color:#6a6a60;">Παγίδα</label>
+          <input type="text" class="edit-field" data-idx="${i}" data-key="trap" value="${escapeHtml(e.trap)}" style="width:70px;font-family:inherit;font-size:12px;padding:4px 6px;border:1px solid #b9b3a2;border-radius:2px;background:#fff;color:var(--ink);">
+          <label style="font-size:10px;color:#6a6a60;">Ημ/νία</label>
+          <input type="text" class="edit-field" data-idx="${i}" data-key="date" value="${escapeHtml(e.date)}" style="flex:1;font-family:inherit;font-size:12px;padding:4px 6px;border:1px solid #b9b3a2;border-radius:2px;background:#fff;color:var(--ink);">
+        </div>
+        <div style="font-size:12px;color:#6a6a60;">y: ${escapeHtml(e.y)}, x: ${escapeHtml(e.x)}</div>
+        <textarea class="edit-field" data-idx="${i}" data-key="comments" rows="2" style="width:100%;font-family:inherit;font-size:12px;padding:6px;border:1px solid #b9b3a2;border-radius:2px;background:#fff;color:var(--ink);">${escapeHtml(e.comments)}</textarea>
+       </div>`
+    ).join('');
+    preview.scrollTop = preview.scrollHeight;
+    submitBtn.disabled = false;
+  }
+
+  preview.addEventListener('input', (ev) => {
+    if(ev.target.classList.contains('edit-field')){
+      const idx = parseInt(ev.target.dataset.idx, 10);
+      const key = ev.target.dataset.key;
+      if(entries[idx]) entries[idx][key] = ev.target.value;
+    }
+  });
+
+  preview.addEventListener('change', (ev) => {
+    if(ev.target.classList.contains('edit-field')){
+      const idx = parseInt(ev.target.dataset.idx, 10);
+      const key = ev.target.dataset.key;
+      if(entries[idx]) entries[idx][key] = ev.target.value;
+    }
+  });
+
+  preview.addEventListener('click', (ev) => {
+    if(ev.target.classList.contains('row-del')){
+      const idx = parseInt(ev.target.dataset.idx, 10);
+      entries.splice(idx, 1);
+      renderPreview();
+    }
+  });
+
+  addBtn.addEventListener('click', () => {
+    if(!currentCoords || trapNum.value.trim() === '') return;
+    entries.push({
+      date: todayDMY(),
+      letter: letterSelect.value,
+      trap: trapNum.value.trim(),
+      comments: comments.value.trim(),
+      x: currentCoords.x,
+      y: currentCoords.y
+    });
+    renderPreview();
+
+    trapNum.value = '';
+    comments.value = '';
+    manualCoords.value = '';
+    currentCoords = null;
+    coordsBox.classList.add('empty');
+    coordsBox.textContent = 'Πάτησε το κουμπί ή γράψε χειροκίνητα';
+    checkAddReady();
+    trapNum.focus();
+  });
+
+  function buildBlob(allRows){
+    const cols = [{wch:16},{wch:8},{wch:12},{wch:30},{wch:22}];
+    const ws = XLSX.utils.json_to_sheet(allRows);
+    ws['!cols'] = cols;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Παγίδες');
+    const buffer = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    return new Blob([buffer], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    if(entries.length === 0) return;
+
+    const rows = entries.map(e => ({
+      'Ημερομηνία': e.date,
+      'Τομέας': e.letter,
+      'Αρ. Παγίδας': e.trap,
+      'Σχόλια': e.comments,
+      'Συντεταγμένες (y,x)': `${e.y}, ${e.x}`
+    }));
+    const datedFilename = `Dacus Trap Log ${nowDMYHM()}.xlsx`;
+    const blob = buildBlob(rows);
+
+    // Prefer the native Share sheet — it preserves the exact filename on
+    // mobile (data:/blob: downloads on some Android browsers, like Mi
+    // Browser, ignore the suggested name and generate their own).
+    const file = new File([blob], datedFilename, {type: blob.type});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file], title: datedFilename});
+        submitStatus.classList.remove('error');
+        submitStatus.classList.add('ok');
+        submitStatus.textContent = `Έτοιμο: ${datedFilename}`;
+        return;
+      } catch(e){
+        if(e && e.name === 'AbortError'){
+          submitStatus.classList.remove('ok');
+          submitStatus.classList.add('error');
+          submitStatus.textContent = 'Ακυρώθηκε η αποθήκευση.';
+          return;
+        }
+        // otherwise fall through to plain download below
+      }
+    }
+
+    // Fallback: blob: URL download. (data: URIs are known to be ignored for
+    // the filename by many Chromium-based Android browsers, e.g. Mi Browser
+    // — they auto-generate a timestamp+random name instead. blob: URLs are
+    // treated as same-origin and reliably keep the suggested filename.)
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = datedFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    submitStatus.classList.remove('error');
+    submitStatus.classList.add('ok');
+    submitStatus.textContent = `Λήψη: ${datedFilename}`;
+  });
+</script>
+</body>
+</html>
